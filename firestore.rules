@@ -1,0 +1,149 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny all operations
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId
+        && incoming().keys().hasAll(['id', 'email', 'name', 'role', 'status', 'createdAt'])
+        && incoming().role in ['teacher', 'student'];
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin())
+        && incoming().role == existing().role; // Prevent self-elevation to super_admin
+      allow delete: if isAdmin();
+    }
+
+    // Tenants Collection (Multi-Tenant Master Gate)
+    match /tenants/{tenantId} {
+      allow get: if isSignedIn() && isValidId(tenantId);
+      allow list: if isSignedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (existing().ownerEmail == request.auth.token.email && request.auth.token.email_verified == true)
+      );
+
+      // Tenant-Scoped Exams Subcollection
+      match /exams/{examId} {
+        allow read: if isSignedIn() && isValidId(examId);
+        allow write: if isSignedIn() && (
+          isAdmin() ||
+          (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email)
+        );
+
+        // Protected Answer Keys: NEVER exposed to students before isReleased
+        match /answerKeys/{answerKeyId} {
+          allow read: if isSignedIn() && (
+            isAdmin() ||
+            (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email) ||
+            existing().isReleased == true
+          );
+          allow write: if isSignedIn() && (
+            isAdmin() ||
+            (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email)
+          );
+        }
+      }
+
+      // OMR Submissions Subcollection
+      match /omrSubmissions/{submissionId} {
+        allow create: if isSignedIn() && isValidId(submissionId);
+        allow read: if isSignedIn() && (
+          isAdmin() ||
+          (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email) ||
+          existing().studentRollNumber == request.auth.token.studentRollNumber
+        );
+        allow update: if isSignedIn() && (
+          isAdmin() ||
+          (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email)
+        );
+        allow delete: if isAdmin();
+      }
+
+      // Protected Audit Logs Subcollection (Append-Only, Immutable)
+      match /auditLogs/{logId} {
+        // Read: Only authorized tenant owners/instructors and super admins
+        allow read: if isSignedIn() && (
+          isAdmin() ||
+          (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email)
+        );
+
+        // Create: Enforce tenant ownership, valid ID, and required audit schema
+        allow create: if isSignedIn() && isValidId(logId) && (
+          isAdmin() ||
+          (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email)
+        )
+        && incoming().tenantId == tenantId
+        && incoming().keys().hasAll(['id', 'tenantId', 'action', 'performedBy', 'details', 'timestamp'])
+        && incoming().action in [
+          'exam_created',
+          'exam_updated',
+          'exam_status_changed',
+          'exam_deleted',
+          'answer_key_updated',
+          'manual_omr_override',
+          'omr_template_created',
+          'omr_template_verified',
+          'student_enrolled',
+          'tenant_settings_updated'
+        ];
+
+        // IMMUTABLE: Audit logs can NEVER be updated or tampered with
+        allow update: if false;
+
+        // NON-DELETABLE: Protected from deletion by regular users
+        allow delete: if isAdmin();
+      }
+
+      // Compatible OMR Templates Subcollection
+      match /omrTemplates/{templateId} {
+        allow read: if isSignedIn() && isValidId(templateId) && (
+          isAdmin() ||
+          (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email)
+        );
+        allow create, update: if isSignedIn() && isValidId(templateId) && (
+          isAdmin() ||
+          (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email)
+        )
+        && incoming().tenantId == tenantId
+        && incoming().keys().hasAll(['id', 'tenantId', 'name', 'totalQuestions', 'optionsPerQuestion', 'createdAt'])
+        && incoming().totalQuestions is number
+        && incoming().totalQuestions >= 5
+        && incoming().totalQuestions <= 100
+        && incoming().optionsPerQuestion in [4, 5];
+        allow delete: if isSignedIn() && (
+          isAdmin() ||
+          (get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerEmail == request.auth.token.email)
+        );
+      }
+    }
+  }
+}

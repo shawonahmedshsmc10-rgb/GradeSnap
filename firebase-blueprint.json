@@ -1,0 +1,166 @@
+{
+  "entities": {
+    "Tenant": {
+      "title": "Tenant",
+      "description": "An independent coaching centre or teacher workspace with its own isolation domain.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "slug": { "type": "string", "maxLength": 100 },
+        "ownerEmail": { "type": "string", "maxLength": 150 },
+        "contactEmail": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "plan": { "type": "string", "enum": ["free", "basic", "pro", "enterprise"] },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "slug", "ownerEmail", "plan", "status", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Authenticated user profile for Super Admin, Teacher, or Student.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 150 },
+        "name": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["super_admin", "teacher", "student"] },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "email", "name", "role", "status", "createdAt"]
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "Model test or examination paper managed by a specific tenant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 300 },
+        "subject": { "type": "string", "maxLength": 150 },
+        "category": { "type": "string" },
+        "totalQuestions": { "type": "number" },
+        "totalMarks": { "type": "number" },
+        "durationMinutes": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "scheduled", "live", "completed", "archived"] },
+        "published": { "type": "boolean" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "title", "subject", "totalQuestions", "totalMarks", "durationMinutes", "status", "published"]
+    },
+    "AnswerKey": {
+      "title": "AnswerKey",
+      "description": "Protected answer key for automated grading.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "examId": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "isReleased": { "type": "boolean" },
+        "allowMultipleCorrect": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "examId", "tenantId", "isReleased"]
+    },
+    "OMRSubmission": {
+      "title": "OMRSubmission",
+      "description": "Scanned or camera-captured student OMR sheet evaluation record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "examId": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "studentRollNumber": { "type": "string", "maxLength": 30 },
+        "submittedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "processed", "flagged", "manual_reviewed"] }
+      },
+      "required": ["id", "examId", "tenantId", "studentRollNumber", "submittedAt", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Protected, immutable audit trail entry tracking critical actions (exam creation, answer key updates, manual OMR overrides).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "action": {
+          "type": "string",
+          "enum": [
+            "exam_created",
+            "exam_updated",
+            "exam_status_changed",
+            "exam_deleted",
+            "answer_key_updated",
+            "manual_omr_override",
+            "omr_template_created",
+            "omr_template_verified",
+            "student_enrolled",
+            "tenant_settings_updated"
+          ]
+        },
+        "performedBy": { "type": "object" },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "targetType": { "type": "string", "maxLength": 64 },
+        "details": { "type": "string", "maxLength": 1000 },
+        "metadata": { "type": "object" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "action", "performedBy", "details", "timestamp"]
+    },
+    "OMRTemplate": {
+      "title": "OMRTemplate",
+      "description": "Teacher-designed CV-compatible OMR sheet template aligned to canonical fiducial markers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "examId": { "type": "string", "maxLength": 128 },
+        "examTitle": { "type": "string", "maxLength": 300 },
+        "subject": { "type": "string", "maxLength": 150 },
+        "sheetVersion": { "type": "string", "maxLength": 32 },
+        "totalQuestions": { "type": "number" },
+        "optionsPerQuestion": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "name", "totalQuestions", "optionsPerQuestion", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/tenants/{tenantId}": {
+      "schema": "Tenant",
+      "description": "Multi-tenant coaching centre isolated records."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles with strict role isolation."
+    },
+    "/tenants/{tenantId}/exams/{examId}": {
+      "schema": "Exam",
+      "description": "Tenant-scoped examination definitions."
+    },
+    "/tenants/{tenantId}/exams/{examId}/answerKeys/{answerKeyId}": {
+      "schema": "AnswerKey",
+      "description": "Secure answer keys only visible to teachers until release time."
+    },
+    "/tenants/{tenantId}/omrSubmissions/{submissionId}": {
+      "schema": "OMRSubmission",
+      "description": "Evaluated OMR submissions with audit trails."
+    },
+    "/tenants/{tenantId}/omrTemplates/{templateId}": {
+      "schema": "OMRTemplate",
+      "description": "Compatible custom A4 OMR sheet templates authored by teachers."
+    },
+    "/tenants/{tenantId}/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Protected, append-only tenant audit logs for critical actions like exam creation, answer key updates, and manual OMR overrides."
+    }
+  }
+}

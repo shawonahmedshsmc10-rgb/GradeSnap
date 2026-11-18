@@ -1,0 +1,10 @@
+{
+  "name": "GradeSnap — Multi-Tenant Exam & OMR Evaluation Platform",
+  "description": "Multi-tenant SaaS examination management platform with computer-vision OMR evaluation, timed exams, answer key auditing, and student performance tracking.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
